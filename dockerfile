@@ -1,8 +1,9 @@
-# 第一阶段：构建阶段，用于安装系统依赖和Python包
-FROM ubuntu:22.04 AS builder
+FROM ubuntu:22.04
 
+# 避免交互式安装提示
 ENV DEBIAN_FRONTEND=noninteractive
 
+# 1. 安装所有运行时依赖（包括 CUPS、LibreOffice、中文字体、Java 等）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     cups \
     cups-client \
@@ -12,33 +13,39 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     poppler-utils \
     pdftk \
     python3-pip \
-    python3-setuptools \
-    python3-dev \
-    build-essential \
+    # 中文字体（思源黑体 + 文泉驿备选）
+    fonts-noto-cjk \
+    fonts-wqy-zenhei \
+    fonts-wqy-microhei \
+    # Java 运行时（LibreOffice 某些转换需要）
+    openjdk-11-jre-headless \
+    # 系统语言环境工具
+    locales \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-COPY . .
+# 2. 配置中文语言环境（避免 locale 警告，并让 LibreOffice 识别中文）
+RUN locale-gen zh_CN.UTF-8 && \
+    update-locale LANG=zh_CN.UTF-8
 
+ENV LANG=zh_CN.UTF-8 \
+    LANGUAGE=zh_CN:zh \
+    LC_ALL=zh_CN.UTF-8
+
+# 3. 刷新字体缓存（让系统立即识别新字体）
+RUN fc-cache -fv
+
+# 4. 安装 Python 依赖（只有 Flask 和 Werkzeug，无需编译）
+WORKDIR /app
+COPY requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-# 第二阶段：运行阶段
-FROM ubuntu:22.04
+# 5. 复制项目源代码
+COPY . .
 
-# 只安装 cups 服务（确保启动脚本完整）
-RUN apt-get update && apt-get install -y --no-install-recommends cups cups-client \
-    && rm -rf /var/lib/apt/lists/*
-
-# 其他所有软件（libreoffice, pdftk, python 包等）从 builder 复制
-COPY --from=builder /usr/lib /usr/lib
-COPY --from=builder /usr/bin /usr/bin
-COPY --from=builder /usr/share /usr/share
-# Ubuntu 22.04 默认 Python 3.10，路径固定。若未来升级基础镜像，需同步修改此路径。
-COPY --from=builder /usr/local/lib/python3.10/dist-packages /usr/local/lib/python3.10/dist-packages 
-COPY --from=builder /usr/local/bin /usr/local/bin
-COPY --from=builder /app /app
-
-WORKDIR /app
+# 6. 暴露端口 FLASK服务和CUPS
 EXPOSE 5000
+EXPOSE 631
 
+
+# 7. 启动服务：先启动 CUPS，再运行 Flask 应用
 CMD service cups start && python3 app.py
