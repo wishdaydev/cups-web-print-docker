@@ -26,7 +26,7 @@
 - 文件列表查看和删除
 
 ### 打印设置
-- **纸张大小**: 办公 A1~A4/照片 5~10 寸等
+- **纸张大小**: 办公A1-A4/照片5-10 寸等
 - **纸张材质**: 普通纸/光面照片纸等
 - **色彩模式**: 彩色/黑白打印
 - **双面打印**: 单面/双面（长边装订）/双面（短边装订）
@@ -299,7 +299,7 @@ A web-based print service built with Python Flask and CUPS, supporting file uplo
 - File list view and deletion
 
 ### Print Settings
-- **Paper Size**: Office A1~A4 / Photo 5~10 inches, etc.
+- **Paper Size**: Office A1-A4 / Photo 5-10 inches, etc.
 - **Paper Type**: Plain paper / Glossy photo paper, etc.
 - **Color Mode**: Color / Black & white printing
 - **Duplex**: Single-sided / Duplex (long-edge binding) / Duplex (short-edge binding)
