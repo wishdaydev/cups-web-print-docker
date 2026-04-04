@@ -14,12 +14,12 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: '自定义镜像标签（留空则使用默认标签）'
+        description: 'Image Tag,镜像标签'
         required: false
         type: string
-        default: ''
+        default: 'latest'
       platforms:
-        description: '目标平台（逗号分隔，例如：linux/amd64,linux/arm64）'
+        description: 'Target Platform-目标平台'
         required: false
         type: string
         default: 'linux/amd64,linux/arm64'
