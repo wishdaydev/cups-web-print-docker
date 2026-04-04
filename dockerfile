@@ -37,7 +37,9 @@ EXPOSE 5000
 EXPOSE 631
 VOLUME ["/etc/cups"]
 VOLUME ["/var/spool/cups"]
+VOLUME ["/var/log/cups"]
 VOLUME ["/app/uploads"]
+VOLUME ["/app/previews"]
 
 # 启动服务：先启动 CUPS，再运行 Flask 应用
 COPY entrypoint.sh /entrypoint.sh
