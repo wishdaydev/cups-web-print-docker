@@ -1,0 +1,18 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Log files
+*.log
+
+# Backup files
+*.bak
+
+# Editor settings
+.qwen/
+
+# Uploaded and preview files (keep directory structure)
+uploads/*
+!uploads/.gitkeep
+previews/*
+!previews/.gitkeep

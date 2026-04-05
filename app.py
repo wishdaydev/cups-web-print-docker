@@ -243,6 +243,53 @@ def get_safe_path(base_path, filename):
         return None
 
 
+def safe_filename(filename, allowed_extensions):
+    """
+    自定义安全文件名处理，保留中文等非ASCII字符
+
+    Args:
+        filename: 原始文件名
+        allowed_extensions: 允许的扩展名集合
+
+    Returns:
+        str: 安全的文件名
+    """
+    # 1. 移除路径部分，只保留文件名
+    filename = os.path.basename(filename)
+
+    # 2. 移除空字符串
+    if not filename:
+        return 'file'
+
+    # 3. 提取并验证扩展名
+    name_part, ext = os.path.splitext(filename)
+    ext = ext.lower()
+
+    # 如果无扩展名或扩展名不在允许列表中
+    if not ext or ext.lstrip('.') not in allowed_extensions:
+        return 'file'
+
+    # 4. 清理文件名中的非法字符（保留中文、英文、数字、下划线、连字符、空格、括号等）
+    # 移除路径分隔符和控制字符
+    illegal_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|', '\x00']
+    safe_name = name_part
+    for char in illegal_chars:
+        safe_name = safe_name.replace(char, '')
+
+    # 移除 '..' 防止路径遍历
+    safe_name = safe_name.replace('..', '')
+
+    # 5. 如果文件名为空，使用默认名
+    if not safe_name.strip():
+        safe_name = 'file'
+
+    # 6. 限制文件名长度（避免文件系统限制）
+    if len(safe_name) > 200:
+        safe_name = safe_name[:200]
+
+    return f"{safe_name}{ext}"
+
+
 def allowed_file(filename):
     """检查文件扩展名是否允许"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
@@ -441,44 +488,27 @@ def get_preview_file(original_filename):
     # 安全检查：只获取文件名，移除路径部分
     original_filename = os.path.basename(original_filename)
 
-    # 获取安全的文件路径
-    original_path = get_safe_path(app.config['UPLOAD_FOLDER'], original_filename)
-    if not original_path or not os.path.exists(original_path):
+    # 如果是 PDF，直接返回 previews/目录的 PDF（不依赖 uploads/ 原始文件）
+    if original_filename.lower().endswith('.pdf'):
+        pdf_path = get_safe_path(app.config['PREVIEW_FOLDER'], original_filename)
+        if pdf_path and os.path.exists(pdf_path):
+            return pdf_path
         return None
 
-    # 如果是图片，直接返回
+    # 如果是图片，返回 uploads/ 原始文件
     if is_image_file(original_filename):
-        return original_path
+        original_path = get_safe_path(app.config['UPLOAD_FOLDER'], original_filename)
+        if original_path and os.path.exists(original_path):
+            return original_path
+        return None
 
-    # 如果是 PDF，返回 previews/目录的 PDF
-    # 注意：PDF 复制应在 api_upload() 中完成
-    if original_filename.lower().endswith('.pdf'):
+    # 如果是文档，返回 previews/目录的 PDF（不依赖 uploads/ 原始文件）
+    if is_document_file(original_filename):
         pdf_filename = os.path.splitext(original_filename)[0] + '.pdf'
         pdf_path = get_safe_path(app.config['PREVIEW_FOLDER'], pdf_filename)
-
-        # 检查预览 PDF 是否存在
-        if not pdf_path or not os.path.exists(pdf_path):
-            # 预览 PDF 不存在，返回错误（应该在 api_upload() 中已复制）
-            logger.error(f"预览 PDF 不存在：{pdf_filename}，请重新上传")
-            return None
-
-        # 返回 previews/目录的 PDF
-        return pdf_path
-
-    # 如果是文档，返回 previews/目录的 PDF
-    # 注意：文档转换应在 api_upload() 中完成
-    if is_document_file(original_filename):
-        pdf_filename = os.path.splitext(original_filename)[0] + '.pdf'  # Keep timestamp
-        pdf_path = get_safe_path(app.config['PREVIEW_FOLDER'], pdf_filename)
-
-        # 检查预览 PDF 是否存在
-        if not pdf_path or not os.path.exists(pdf_path):
-            # 预览 PDF 不存在，返回错误（应该在 api_upload() 中已转换）
-            logger.error(f"预览 PDF 不存在：{pdf_filename}，请重新上传")
-            return None
-
-        # 返回 previews/目录的 PDF
-        return pdf_path
+        if pdf_path and os.path.exists(pdf_path):
+            return pdf_path
+        return None
 
     return None
 
@@ -1218,11 +1248,12 @@ def api_upload():
     
     if file and allowed_file(file.filename):
         try:
-            # 获取文件名和扩展名
-            filename = secure_filename(file.filename)
-            name, ext = os.path.splitext(filename)
-            
+            # 获取文件名和扩展名（使用自定义 safe_filename 保留中文等非ASCII字符）
+            original_filename = file.filename
+            filename = safe_filename(original_filename, app.config['ALLOWED_EXTENSIONS'])
+
             # 添加时间戳避免文件名冲突
+            name, ext = os.path.splitext(filename)
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f"{name}_{timestamp}{ext}"
             
@@ -1416,9 +1447,9 @@ def api_list_files():
                         file_type = 'document'  # lowercase for frontend comparison
                     else:
                         file_type = 'other'  # lowercase for frontend comparison
-                    # Get preview images for document files
+                    # Get preview images for document and PDF files
                     preview_images = []
-                    if file_type == 'document' or ext.lower().endswith('.pdf'):
+                    if file_type == 'document' or file_type == 'pdf':
                         # Use full filename with timestamp
                         pdf_filename = os.path.splitext(filename)[0] + '.pdf'
                         preview_images = get_preview_images(pdf_filename)
